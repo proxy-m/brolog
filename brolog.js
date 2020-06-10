@@ -6,7 +6,7 @@
 
 var ARRAY_SLICE = Array.prototype.slice,
     ARRAY_PUSH = Array.prototype.push,
-    DEFAULT_PRINTER = getConsolePrinter(window.console),
+    DEFAULT_PRINTER = _getConsolePrinter(window.console),
     PRINTERS = [ DEFAULT_PRINTER ];
 
 var QUERY_PARAM_DIRECTIVE = 'brolog';
@@ -70,7 +70,7 @@ function allow(logger, level){
     return true;
 }
 
-function getConsolePrinter(console){
+function _getConsolePrinter(console){
     var clog = console && console.log ? getInterface('log') : function(){},
         cdbg = console && console.debug ? getInterface('debug') : clog,
         cwrn = console && console.warn ? getInterface('warn') : clog,
@@ -127,6 +127,8 @@ function _print(logger, level, args){
     return args.join(" ");
 }
 
+Logger._getConsolePrinter = _getConsolePrinter;
+
 Logger.prototype.log = Logger.prototype.info = Logger.prototype.inf = function(){
     return _print(this, LEVELS.toNumber.INF, arguments);
 };
@@ -135,7 +137,7 @@ Logger.prototype.debug = function(){
     return _print(this, LEVELS.toNumber.DBG, arguments);
 };
 
-Logger.prototype.warn = function(){
+Logger.prototype.warn = Logger.prototype.wrn = function(){
     return _print(this, LEVELS.toNumber.WRN, arguments);
 };
 
