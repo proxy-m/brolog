@@ -12,6 +12,7 @@ var ARRAY_SLICE = Array.prototype.slice,
 var QUERY_PARAM_DIRECTIVE = 'brolog';
 
 var LEVELS = [
+    'TRA',
     'DBG',
     'INF',
     'WRN',
@@ -48,7 +49,7 @@ function Logger(name){
     this.id = lCounter++;
     this.name = name || "Logger " + this.id;
     this.hasGivenName = !!name;
-    this.level = LEVELS.toNumber.DBG;
+    this.level = LEVELS.toNumber.TRA;
     this.counter = 0;
     this.start = null;
 
@@ -84,18 +85,19 @@ function _getConsolePrinter(console){
         ];
         ARRAY_PUSH.apply(_msgs, msgs);
         switch(sLevel){
+            case "TRA":
             case "DBG":
                 cdbg.apply(null, _msgs);
                 break;
-            case "INF":
-                clog.apply(null, _msgs);
-                break;
-            case "WRN":
-                cwrn.apply(null, _msgs);
-                break;
             case "ERR":
                 cerr.apply(null, _msgs);
+                break;    
+			case "WRN":
+                cwrn.apply(null, _msgs);
                 break;
+            case "INF":
+                clog.apply(null, _msgs);
+                break;          
             default:
                 clog.apply(null, _msgs);
                 break;
@@ -129,11 +131,15 @@ function _print(logger, level, args){
 
 Logger._getConsolePrinter = _getConsolePrinter;
 
+Logger.prototype.trace = Logger.prototype.tra = function(){
+    return _print(this, LEVELS.toNumber.TRA, arguments);
+};
+
 Logger.prototype.log = Logger.prototype.info = Logger.prototype.inf = function(){
     return _print(this, LEVELS.toNumber.INF, arguments);
 };
 
-Logger.prototype.debug = function(){
+Logger.prototype.debug = Logger.prototype.dbg = function(){
     return _print(this, LEVELS.toNumber.DBG, arguments);
 };
 
@@ -145,13 +151,17 @@ Logger.prototype.error = Logger.prototype.err = function(){
     return _print(this, LEVELS.toNumber.ERR, arguments);
 };
 
-Logger.prototype.off = function(){
+Logger.prototype.setOff = Logger.prototype.off = function(){
     this.level = LEVELS.toNumber.OFF;
 };
 
 Logger.prototype.with = function(meta){
     this.meta = meta;
     return this;
+};
+
+Logger.prototype.setTrace = function(){
+    this.level = LEVELS.toNumber.TRA;
 };
 
 Logger.prototype.setDebug = function(){
@@ -170,8 +180,12 @@ Logger.prototype.setError = Logger.prototype.setErr = function(){
     this.level = LEVELS.toNumber.ERR;
 };
 
-Logger.off = function(){
+Logger.setOff = Logger.off = function(){
     gLevel = LEVELS.toNumber.OFF;
+};
+
+Logger.setTrace = function(){
+    gLevel = LEVELS.toNumber.TRA;
 };
 
 Logger.setDebug = function(){
