@@ -5,7 +5,7 @@
     "Eyal Arubas <eyalarubas@gmail.com>"
   ],
   "description": "A logging module",
-  "main": "main.js",
+  "main": "brolog.js",
   "moduleType": [
     "amd"
   ],
