@@ -2,7 +2,8 @@
   "name": "brolog",
   "version": "0.0.6",
   "authors": [
-    "Eyal Arubas <eyalarubas@gmail.com>"
+    "Eyal Arubas <eyalarubas@at.gmail>",
+    "Mikhail B. <wproxym@at.gmail>"
   ],
   "description": "A logging module",
   "main": "brolog.js",
