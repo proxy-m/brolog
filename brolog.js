@@ -123,7 +123,7 @@ var mkdirp = function(path) {
 	var p;
 	for (p of familyTree) {
 		try {
-			require('fs').mkdir(p);
+			require('fs').mkdirSync(p);
 		} catch (e) {
 		}
 	}
