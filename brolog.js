@@ -6,7 +6,8 @@
 
 var ARRAY_SLICE = Array.prototype.slice,
     ARRAY_PUSH = Array.prototype.push,
-    DEFAULT_PRINTER = _getConsolePrinter(window.console),
+    LOCAL_PRINTERS = {},
+    DEFAULT_PRINTER = _getConsolePrinter('*', window.console),
     PRINTERS = [ DEFAULT_PRINTER ];
 
 var QUERY_PARAM_DIRECTIVE = 'brolog';
@@ -26,6 +27,28 @@ var LEVELS = [
     toNumber: {},
     toString: {}
 });
+
+var LOCAL_LOGGERS = {};
+
+function _getLoggerByName(loggerName, newLogger, newLoggerId) {
+	if (newLoggerId && (!loggerName || loggerName === true)) {
+		loggerName = 'Logger_' + newLoggerId;
+	}
+	if (loggerName === '*' || !loggerName || loggerName === true) {
+		return null;
+	} else {
+        loggerName = ''+clearName(loggerName);
+        var localLogger = LOCAL_LOGGERS[loggerName] || newLogger || new Logger(loggerName);
+        localLogger.name = loggerName;
+        if (!!newLoggerId) {
+			localLogger.id = newLoggerId;
+		}
+		newLoggerId = localLogger.id;
+        LOCAL_LOGGERS[loggerName] = localLogger;
+        ///LOCAL_LOGGERS[newLoggerId] = localLogger;
+        return localLogger;
+    }
+};
 
 var gLevel = LEVELS.toNumber.OFF,
     gCounter = 0,
@@ -81,11 +104,20 @@ function clearName(fullFileName) {
  */
 function Logger(name){
     this.id = lCounter++;
-    this.name = (!!name) ? ('Logger_'+clearName(name)) : ('Logger ' + this.id);
-    this.hasGivenName = !!name;
+    var localLogger = _getLoggerByName(name, this, this.id) || {"name": name, "id": this.id};
+    if (!!localLogger && !!localLogger.id) {
+		this.id = localLogger.id;
+	}
+    this.name = (!!localLogger && !!localLogger.name) ? (localLogger.name) : ('Logger ' + this.id);
+    this.hasGivenName = !!name && name !== '*';
     this.level = LEVELS.toNumber.TRA;
     this.counter = 0;
     this.start = null;
+    
+    localLogger = this;
+    if (this.hasGivenName) {
+        LOCAL_LOGGERS[this.name] = localLogger; ///
+    }
 
     // whatever is here will be sent as meta data to the log printers,
     // *only* for the next log message, and then will be reset back to 'null'.
@@ -105,7 +137,7 @@ function allow(logger, level){
     return true;
 }
 
-function _getConsolePrinter(console){
+function _getConsolePrinter(targetLogger, console){
     var clog = console && console.log ? getInterface('log') : function(){},
         cdbg = console && console.debug ? getInterface('debug') : clog,
         cwrn = console && console.warn ? getInterface('warn') : clog,
@@ -149,13 +181,16 @@ function _getConsolePrinter(console){
     }
 }
 
-function _getFilePrinter(outFileName, customDelimiter){
+function _getFilePrinter(targetLogger, outFileName, customDelimiter){
     var flog = getInterface('fs') || function(){};
     if (!customDelimiter || customDelimiter === true) {
         customDelimiter = ', ';
 	}
 	if (!outFileName) {
 		throw 'outFileName is not correct: '+outFileName;
+	}
+	if (!targetLogger) {
+		targetLogger = _getLoggerByName(outFileName);
 	}
     return function(gCounter, gStart, logger, nLevel, sLevel, msgs, meta){
         var _msgs = [
@@ -194,8 +229,9 @@ function _getFilePrinter(outFileName, customDelimiter){
 function addFileLogger(targetScriptName, customDelimiter) {
     targetScriptName = _simplifySlashesAndLinebreaks(targetScriptName, customDelimiter);
     var outFileName = targetScriptName+'.log';
-    var filePrinter = _getFilePrinter(outFileName, customDelimiter);
-    Logger.addPrinter(filePrinter);
+    var targetLogger = _getLoggerByName(outFileName);
+    var filePrinter = _getFilePrinter(targetLogger, outFileName, customDelimiter);
+    targetLogger.addLocalPrinter(filePrinter);
 }
 
 function _print(logger, level, args){
@@ -208,11 +244,18 @@ function _print(logger, level, args){
     PRINTERS.forEach(function(printer){
         printer(gCounter, gStart, logger, level, LEVELS.toString[level], args, logger.meta);
     });
+    
+	if (!!logger.name && logger.name !== '*' && !!LOCAL_PRINTERS[logger.name]) {
+			LOCAL_PRINTERS[logger.name].forEach(function(printer){
+                printer(gCounter, gStart, logger, level, LEVELS.toString[level], args, logger.meta);
+            });
+	}
+    
     logger.meta = null;
     return args.join(" ");
 }
 
-Logger._getConsolePrinter = _getConsolePrinter;
+Logger.getConsolePrinter = _getConsolePrinter.bind(this, '*');
 Logger.addFileLogger = addFileLogger;
 
 function callerName() {
@@ -335,7 +378,7 @@ function cleanStringify(object) {
         Object.keys(object).forEach(function(key) {
             var value = object[key];
             let wasArray = Array.isArray(value);
-            if (value && typeof value === 'object') {
+            if (value && typeof value === 'object' && !(value instanceof String)) {
                 if (references.indexOf(value) < 0) {
                     references.push(value);
                     cleanObject[key] = copyWithoutCircularReferences(references, value);
@@ -346,7 +389,10 @@ function cleanStringify(object) {
                 } else {
                     cleanObject[key] = '###_Circular_###';
                 }
-            } else if (typeof value !== 'function') {
+            } else {
+				if (typeof value === 'function' || !(value === true || value === false || value === null || value === undefined || typeof value === 'number')) {
+					value = ''+value;
+				}
                 cleanObject[key] = value;
             }
         });
@@ -439,6 +485,19 @@ Logger.addPrinter = function(printer){
     if (typeof(printer) !== 'function') throw Error("'printer' must be a function");
     PRINTERS.push(printer);
 };
+
+Logger.prototype.addLocalPrinter = function(printer){
+    if (typeof(printer) !== 'function') throw Error("'printer' must be a function");
+    if (!!this && this !== true) {
+		LOCAL_PRINTERS[this.name || '*'] = LOCAL_PRINTERS[this.name || '*'] || [];
+		LOCAL_PRINTERS[this.name || '*'].push(printer);
+	} else {
+		LOCAL_PRINTERS['*'] = LOCAL_PRINTERS['*'] || [];
+		LOCAL_PRINTERS['*'].push(printer);
+	}
+};
+
+LOCAL_PRINTERS['*'] = PRINTERS;
 
 return Logger;
 
