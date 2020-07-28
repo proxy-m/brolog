@@ -65,6 +65,70 @@ if (window && window.location){
     if (l !== undefined) gLevel = l;
 }
 
+var dirname = function(path) {
+    if (!path || path === true) {
+		return path;
+    }
+    path = _simplifySlashesAndLinebreaks(path);
+    var first = path[0];
+    if (first !== '/' && !(first === '.' && (path[1] === '/' || path[1] === '.'))) {
+        first = '.';
+        path = first + '/'+ path;
+    }
+	while (path.endsWith('/')) {
+		path = path.substring(0, path.length-1);
+    }
+	if (path.length <= 1 || path === '..') {
+		return path || first;
+    }
+	path = path.substring(0, path.lastIndexOf('/'));
+    if (path.length <= 0) {
+		path = first;
+    }
+    if (!path.endsWith('/')) {
+        path += '/';
+    }
+    return path;
+}
+
+var basename = function(path) {
+	if (!path || path === true) {
+		return path;
+    }
+    path = _simplifySlashesAndLinebreaks(path);
+	while(path.endsWith('/')) {
+        path = path.substring(0, path.length-1);
+    }
+	return path.substring(path.lastIndexOf('/')+1);
+}
+
+var allfamily = function(path) {
+	if (!path || path === true) {
+		return [];
+	}
+	var results = [path];
+	var parentPath;
+	while (true) {
+		parentPath = dirname(results[0]);
+		if (parentPath === results[0] || !parentPath) {
+			break;
+		}
+		results.unshift(parentPath);
+	}
+	return results;
+}
+
+var mkdirp = function(path) {
+	var familyTree = allfamily(path);
+	var p;
+	for (p of familyTree) {
+		try {
+			require('fs').mkdir(p);
+		} catch (e) {
+		}
+	}
+}
+
 function _simplifySlashes(fullFileName) {
 	fullFileName = fullFileName.replace(/\\/g, '/'); // safety from win paths: 1
 	return fullFileName;
@@ -192,6 +256,7 @@ function _getFilePrinter(targetLogger, outFileName, customDelimiter){
 	if (!targetLogger) {
 		targetLogger = _getLoggerByName(outFileName);
 	}
+	mkdirp(dirname(outFileName));
     return function(gCounter, gStart, logger, nLevel, sLevel, msgs, meta){
         var _msgs = [
             "[" + gCounter + " " + (Date.now() - gStart) + "]",
@@ -228,8 +293,16 @@ function _getFilePrinter(targetLogger, outFileName, customDelimiter){
 
 function addFileLogger(targetScriptName, customDelimiter) {
     targetScriptName = _simplifySlashesAndLinebreaks(targetScriptName, customDelimiter);
-    var outFileName = targetScriptName+'.log';
-    var targetLogger = _getLoggerByName(outFileName);
+    
+    var parentDir = dirname(targetScriptName);
+    var parentShort = basename(parentDir);
+    var grandpaDir = dirname(parentDir);
+    
+    var logsDir = grandpaDir + 'logs/' + parentShort + '/';
+    
+    var targetLogger = _getLoggerByName(targetScriptName);
+    var outFileName = logsDir+targetLogger.name+'.log.htm';
+    
     var filePrinter = _getFilePrinter(targetLogger, outFileName, customDelimiter);
     targetLogger.addLocalPrinter(filePrinter);
 }
