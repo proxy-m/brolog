@@ -42,12 +42,36 @@ if (window && window.location){
     if (l !== undefined) gLevel = l;
 }
 
+function clearName(fullFileName) {
+	if (!fullFileName || fullFileName === true) {
+		return fullFileName;
+	} else {
+		fullFileName = ''+fullFileName;
+	}
+	//console.error('fullFileName: ', fullFileName);
+	fullFileName = fullFileName.replace(/\\/g, '/'); // safety from win paths: 1
+	fullFileName = fullFileName.replace(/\r\n/g, '\r'); // safety from win paths: 2.1
+	fullFileName = fullFileName.replace(/\r/g, '\n'); // safety from mac paths: 2.2
+	fullFileName = fullFileName.replace(/\n/g, '_br_'); // safety from lin paths: 2.3
+	fullFileName = fullFileName.replace(/\t/g, '    '); // safety from tabs: 3
+	
+	if (fullFileName.indexOf('/') < 0) {
+		return fullFileName;
+	} else {
+		let tmpArr = fullFileName.split('/');
+		fullFileName = tmpArr[tmpArr.length-1]; // to short path
+		tmpArr = fullFileName.split('.');
+		fullFileName = tmpArr[0]; // to short name
+		return fullFileName;
+	}
+}
+
 /**
  * Constructor
  */
 function Logger(name){
     this.id = lCounter++;
-    this.name = name || "Logger " + this.id;
+    this.name = (!!name) ? ('Logger_'+clearName(name)) : ('Logger ' + this.id);
     this.hasGivenName = !!name;
     this.level = LEVELS.toNumber.TRA;
     this.counter = 0;
@@ -131,24 +155,129 @@ function _print(logger, level, args){
 
 Logger._getConsolePrinter = _getConsolePrinter;
 
+function callerName() {
+    try {
+        var myCallee = arguments.callee;
+        var hisCallee = myCallee.caller.arguments.callee;
+        var hisCallerName = hisCallee.caller.name;
+
+        if (isNoE(hisCallerName)) {
+            var hisCallersFunction = hisCallee.caller.toString();
+            if (!isNoE(hisCallersFunction)) {
+                hisCallerName = fBetween(hisCallersFunction, "function", "(");
+            }
+        }
+        hisCallerName = hisCallerName.trim();
+    } catch (ex) {
+        hisCallerName = "";
+    }
+
+    if (isNoE(hisCallerName)) {
+		var e0 = new Error('e0');
+		var s0 = e0.stack.split('\n');
+        return '('+((s0[3] || s0[2] || s0[1] || 'at anonymous').trim())+')';
+    }
+
+    return hisCallerName;
+}
+
+///////////////////////////////////////
+function getStringValue(inString) {
+    if (inString == null || inString == "undefined" || inString == "null" || inString == "[object]" || inString == "[object NodeList]") {
+        return "";
+    }
+
+    try {
+        var tString = new String(inString);
+        return tString.toString();
+    } catch (e) {
+        return "";
+    }
+}
+
+function fLeft(inText, delim) {
+    inText = getStringValue(inText);
+    delim = getStringValue(delim);
+    var outText = "";
+    var theSpot = inText.indexOf(delim);
+    if (theSpot > -1) {
+        outText = inText.substring(0, theSpot);
+    }
+    return outText;
+}
+
+function fLeftBack(inText, delim) {
+    inText = getStringValue(inText);
+    delim = getStringValue(delim);
+    var outText = "";
+    var theSpot = inText.lastIndexOf(delim);
+    if (theSpot > -1) outText = inText.substring(0, theSpot);
+    return outText;
+}
+
+function fRight(inText, delim) {
+    inText = getStringValue(inText);
+    delim = getStringValue(delim);
+    var outText = "";
+    var theSpot = inText.indexOf(delim);
+    if (theSpot > -1) {
+        outText = inText.substring(theSpot + delim.length, inText.length);
+    }
+    return outText;
+}
+
+function fRightBack(inText, delim) {
+    inText = getStringValue(inText);
+    delim = getStringValue(delim);
+    var outText = "";
+    var theSpot = inText.lastIndexOf(delim);
+    if (theSpot > -1) outText = inText.substring(theSpot + delim.length, inText.length);
+    return outText;
+}
+
+function fBetween(inText, delimLeft, delimRight) {
+    return fLeft(fRight(inText, delimLeft), delimRight);
+}
+
+function isNoE(obj) {
+    return isNullOrEmpty(obj);
+}
+
+function isNullOrEmpty(obj) {
+
+    // must test type of base object first
+    if (typeof obj == "undefined") {
+        return true;
+    }
+
+    // immediate
+    if (obj == undefined || obj == null) {
+        return true;
+    }
+
+    // STRING
+    return getStringValue(obj) == "";
+}
+///////////////////////////////////////
+
 Logger.prototype.trace = Logger.prototype.tra = function(){
-    return _print(this, LEVELS.toNumber.TRA, arguments);
+    return _print(this, LEVELS.toNumber.TRA, Object.values(arguments).concat([callerName()]));
 };
 
 Logger.prototype.log = Logger.prototype.info = Logger.prototype.inf = function(){
-    return _print(this, LEVELS.toNumber.INF, arguments);
+    return _print(this, LEVELS.toNumber.INF, Object.values(arguments).concat([callerName()]));
 };
 
 Logger.prototype.debug = Logger.prototype.dbg = function(){
-    return _print(this, LEVELS.toNumber.DBG, arguments);
+    return _print(this, LEVELS.toNumber.DBG, Object.values(arguments).concat([callerName()]));
 };
 
 Logger.prototype.warn = Logger.prototype.wrn = function(){
-    return _print(this, LEVELS.toNumber.WRN, arguments);
+    return _print(this, LEVELS.toNumber.WRN, Object.values(arguments).concat([callerName()]));
 };
 
 Logger.prototype.error = Logger.prototype.err = function(){
-    return _print(this, LEVELS.toNumber.ERR, arguments);
+    return _print(this, LEVELS.toNumber.ERR, Object.values(arguments).concat([callerName()]));
 };
 
 Logger.prototype.setOff = Logger.prototype.off = function(){
