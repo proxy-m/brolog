@@ -42,6 +42,19 @@ if (window && window.location){
     if (l !== undefined) gLevel = l;
 }
 
+function _simplifySlashes(fullFileName) {
+	fullFileName = fullFileName.replace(/\\/g, '/'); // safety from win paths: 1
+	return fullFileName;
+}
+
+function _simplifySlashesAndLinebreaks(fullFileName) {
+	fullFileName = _simplifySlashes(fullFileName);
+	fullFileName = fullFileName.replace(/\r\n/g, '\r'); // safety from win paths: 2.1
+	fullFileName = fullFileName.replace(/\r/g, '\n'); // safety from mac paths: 2.2
+	fullFileName = fullFileName.replace(/\t/g, '    '); // safety from tabs: 3
+	return fullFileName.trim();
+}
+
 function clearName(fullFileName) {
 	if (!fullFileName || fullFileName === true) {
 		return fullFileName;
@@ -49,11 +62,8 @@ function clearName(fullFileName) {
 		fullFileName = ''+fullFileName;
 	}
 	//console.error('fullFileName: ', fullFileName);
-	fullFileName = fullFileName.replace(/\\/g, '/'); // safety from win paths: 1
-	fullFileName = fullFileName.replace(/\r\n/g, '\r'); // safety from win paths: 2.1
-	fullFileName = fullFileName.replace(/\r/g, '\n'); // safety from mac paths: 2.2
+	fullFileName = _simplifySlashesAndLinebreaks(fullFileName);
 	fullFileName = fullFileName.replace(/\n/g, '_br_'); // safety from lin paths: 2.3
-	fullFileName = fullFileName.replace(/\t/g, '    '); // safety from tabs: 3
 	
 	if (fullFileName.indexOf('/') < 0) {
 		return fullFileName;
@@ -139,6 +149,55 @@ function _getConsolePrinter(console){
     }
 }
 
+function _getFilePrinter(outFileName, customDelimiter){
+    var flog = getInterface('fs') || function(){};
+    if (!customDelimiter || customDelimiter === true) {
+        customDelimiter = ', ';
+	}
+	if (!outFileName) {
+		throw 'outFileName is not correct: '+outFileName;
+	}
+    return function(gCounter, gStart, logger, nLevel, sLevel, msgs, meta){
+        var _msgs = [
+            "[" + gCounter + " " + (Date.now() - gStart) + "]",
+            "[" + logger.name + "]",
+            "[" + logger.counter + " " + (Date.now() - logger.start) + "]",
+            "[" + sLevel + "]"
+        ];
+        ARRAY_PUSH.apply(_msgs, msgs);
+        _msgs = _msgs.map(function(el) {
+            return cleanStringify(el);
+		});
+        var bigMessage = _msgs.join(customDelimiter);
+        flog.writeFileSync(outFileName, bigMessage + '<br/>\n', {
+			"encoding": 'utf8',
+			"flag": 'a',
+			"mode": 0o666,
+		});
+    };
+
+    function getInterface(method){
+        if (typeof global !== "undefined" || typeof window === "undefined") {
+            //NodeJS
+            return require('fs');
+        } else {
+            //browsers
+            return {
+				writeFileSync: function(outFileName, message, encoding) {
+					return console.log(outFileName, message, encoding);
+				}
+			};
+        }
+    }
+}
+
+function addFileLogger(targetScriptName, customDelimiter) {
+    targetScriptName = _simplifySlashesAndLinebreaks(targetScriptName, customDelimiter);
+    var outFileName = targetScriptName+'.log';
+    var filePrinter = _getFilePrinter(outFileName, customDelimiter);
+    Logger.addPrinter(filePrinter);
+}
+
 function _print(logger, level, args){
     if (!allow(logger, level)) return;
     if (!gStart) gStart = Date.now();
@@ -154,6 +213,7 @@ function _print(logger, level, args){
 }
 
 Logger._getConsolePrinter = _getConsolePrinter;
+Logger.addFileLogger = addFileLogger;
 
 function callerName() {
     try {
@@ -259,6 +319,40 @@ function isNullOrEmpty(obj) {
     return getStringValue(obj) == "";
 }
 ///////////////////////////////////////
+
+function cleanStringify(object) {
+    if (object && typeof object === 'object') {
+        let wasArray = Array.isArray(object);
+        object = copyWithoutCircularReferences([object], object);
+        if (wasArray && !Array.isArray(object)) {
+            object = Object.values(object);
+        }
+    }
+    return JSON.stringify(object);
+
+    function copyWithoutCircularReferences(references, object) {
+        var cleanObject = {};
+        Object.keys(object).forEach(function(key) {
+            var value = object[key];
+            let wasArray = Array.isArray(value);
+            if (value && typeof value === 'object') {
+                if (references.indexOf(value) < 0) {
+                    references.push(value);
+                    cleanObject[key] = copyWithoutCircularReferences(references, value);
+                    if (wasArray && !Array.isArray(cleanObject[key])) {
+                        cleanObject[key] = Object.values(cleanObject[key]);
+                    }
+                    references.pop();
+                } else {
+                    cleanObject[key] = '###_Circular_###';
+                }
+            } else if (typeof value !== 'function') {
+                cleanObject[key] = value;
+            }
+        });
+        return cleanObject;
+    }
+}
 
 Logger.prototype.trace = Logger.prototype.tra = function(){
     return _print(this, LEVELS.toNumber.TRA, Object.values(arguments).concat([callerName()]));
