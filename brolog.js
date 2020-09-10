@@ -124,6 +124,10 @@ var mkdirp = function(path) {
 	for (p of familyTree) {
 		try {
 			require('fs').mkdirSync(p);
+            try {
+                require('fs').chmodSync(p, 0o777);
+            } catch (e0) {
+            }
 		} catch (e) {
 		}
 	}
@@ -272,8 +276,12 @@ function _getFilePrinter(targetLogger, outFileName, customDelimiter){
         flog.writeFileSync(outFileName, bigMessage + '<br/>\n', {
 			"encoding": 'utf8',
 			"flag": 'a',
-			"mode": 0o666,
+			"mode": 0o666, // but not forget about folder: 0o777
 		});
+        try {
+            flog.chmodSync(outFileName, 0o666);
+        } catch (e0) {
+        }
     };
 
     function getInterface(method){
@@ -285,7 +293,10 @@ function _getFilePrinter(targetLogger, outFileName, customDelimiter){
             return {
 				writeFileSync: function(outFileName, message, encoding) {
 					return console.log(outFileName, message, encoding);
-				}
+				},
+                chmodSync: function(outFileName, mode) {
+                    return undefined;
+                },
 			};
         }
     }
